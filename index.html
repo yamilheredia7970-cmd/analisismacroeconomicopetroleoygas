@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Analítico - Sector Hidrocarburos (Petróleo y Gas)</title>
+  
+  <!-- CSS Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Estilos base custom */
+    body {
+      background-color: #f1f5f9; /* slate-100 */
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      color: #1e293b;
+    }
+    h1, h2, h3, h4, h5, h6 {
+        color: #0f172a;
+    }
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .loader {
+      border: 4px solid #f8fafc;
+      border-top: 4px solid #38bdf8;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* Estilos globales de contenedores */
+    .bg-white {
+        background-color: #ffffff;
+    }
+    .border-gray-100 {
+        border-color: #e2e8f0;
+    }
+    /* Reemplazos de bg-slate-900 / tarjetas oscuras */
+    .bg-slate-900 {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        color: #0f172a;
+    }
+    .text-slate-300 {
+       color: #334155; 
+    }
+    .border-slate-700 {
+        border-color: #e2e8f0;
+    }
+    /* Indicadores numéricos */
+    .bg-slate-800 {
+        background-color: transparent;
+        color: #0ea5e9;
+    }
+    /* Riesgo */
+    .bg-red-900\/30 {
+        background-color: #fff1f2;
+    }
+    .border-red-800\/50 {
+        border-color: #ffe4e6;
+    }
+    .text-red-100 {
+        color: #9f1239;
+    }
+    .text-red-400 {
+        color: #e11d48;
+    }
+  </style>
+</head>
+
+<body class="antialiased" style="margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; flex-direction: column; overflow: hidden; background-color: #f1f5f9; font-family: 'Helvetica Neue', Arial, sans-serif;">
+
+  <!-- Modal de carga inicial -->
+  <div id="loaderOverlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center transition-opacity duration-500">
+    <div class="loader mb-4"></div>
+    <h2 class="text-xl font-semibold text-gray-700">Procesando y Analizando Dataset...</h2>
+    <p class="text-sm text-gray-500 max-w-md text-center mt-2">
+      Ejecutando análisis relacional, detección de desacoples y cálculo y filtrado de indicadores económicos (VBP/VAB, Participación PBI).
+    </p>
+  </div>
+
+  <div style="display: none; flex-direction: column; width: 100vw; max-width: 100%;" class="h-auto lg:h-screen lg:overflow-hidden overflow-y-auto" id="dashboardContent">
+    
+    <!-- Encabezado y Resumen -->
+    <header class="flex-col md:flex-row gap-4 md:gap-0" style="background-color: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; width: 100%; box-sizing: border-box;">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="width: 32px; height: 32px; background-color: #0f172a; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <div style="width: 16px; height: 16px; border: 2px solid #38bdf8; border-top-color: transparent; border-radius: 50%;"></div>
+        </div>
+        <div style="display: flex; align-items: center; flex-wrap: wrap;">
+          <h1 style="font-size: 1.15rem; font-weight: 700; color: #0f172a; letter-spacing: -0.025em; margin: 0; line-height: 1;">Business Intelligence: Sector Energético <span class="hidden sm:inline" style="font-weight: 400; color: #64748b; font-size: 0.8rem; margin-left: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Análisis Minero y Petrolero</span></h1>
+          
+          <div style="display: flex; align-items: center; gap: 0.35rem; background-color: #ecfdf5; padding: 0.2rem 0.6rem; border-radius: 9999px; border: 1px solid #a7f3d0; margin-left: 0.5rem; margin-top: 0.25rem;" class="sm:ml-4 sm:mt-0">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span style="font-size: 0.65rem; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.05em;">LIVE</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex-wrap justify-center flex-col sm:flex-row w-full sm:w-auto mt-2 sm:mt-0" style="display: flex; gap: 0.75rem;">
+          <!-- Menu Filtros as a compact toolbar group in header -->
+          <div class="flex-wrap justify-center w-full sm:w-auto" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.4rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #475569;">
+            <span style="font-weight: 600;">FILTRO:</span>
+            
+            <div class="flex items-center">
+              <select id="yearFilter" onchange="updateDashboard()" style="font-size: 0.75rem; background: transparent; border: none; color: #0f172a; outline: none; cursor: pointer; padding: 0;">
+                <option value="Todos">Año/Todos</option>
+                <option value="2020">2020</option>
+                <option value="2021">2021</option>
+                <option value="2022">2022</option>
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
+              </select>
+            </div>
+            
+            <span class="hidden sm:inline" style="color: #cbd5e1;">•</span>
+
+            <div class="flex items-center mt-1 sm:mt-0">
+              <select id="companyFilter" onchange="updateDashboard()" style="font-size: 0.75rem; background: transparent; border: none; color: #0f172a; outline: none; cursor: pointer; max-width: 140px; text-overflow: ellipsis; padding: 0;">
+                <option value="Todos">Empresa/Todas</option>
+                <option value="PAN AMERICAN ENERGY SL">PAN AMERICAN ENERGY</option>
+                <option value="OILSTONE ENERGIA S.A.">OILSTONE ENERGIA</option>
+                <option value="COLHUE HUAPI S.A.">COLHUE HUAPI</option>
+                <option value="CHAÑARES ENERGIA S.A.">CHAÑARES ENERGIA</option>
+              </select>
+            </div>
+
+            <span class="hidden sm:inline" style="color: #cbd5e1;">•</span>
+            
+            <div class="flex items-center mt-1 sm:mt-0">
+              <select id="resourceFilter" onchange="updateDashboard()" style="font-size: 0.75rem; background: transparent; border: none; color: #0f172a; outline: none; cursor: pointer; padding: 0;">
+                <option value="Todos">Recurso/Todos</option>
+                <option value="Petróleo">Petróleo crudo</option>
+                <option value="Gas Natural">Gas natural</option>
+              </select>
+            </div>
+          </div>
+          
+          <button class="w-full sm:w-auto" onclick="alert('Generando reporte PBI exportado a PDF (Funcionalidad Simulada).')" style="background-color: #0f172a; color: white; padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; border: none; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#1e293b'" onmouseout="this.style.backgroundColor='#0f172a'">
+              Exportar Reporte
+          </button>
+      </div>
+    </header>
+
+    <main class="grid-cols-1 lg:grid-cols-[1fr_320px] overflow-y-auto lg:overflow-hidden lg:flex-1" style="display: grid; gap: 1.5rem; padding: 1.5rem; box-sizing: border-box; width: 100%;">
+        
+        <div class="h-auto lg:h-full" style="display: flex; flex-direction: column; gap: 1.5rem; overflow-y: auto; overflow-x: hidden; padding-right: 0.75rem;">
+            <!-- Indicadores Clave (KPIs) -->
+            <section class="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style="display: grid; gap: 1.25rem;">
+              <!-- KPI 1 -->
+              <div style="background: white; padding: 1.25rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" class="card-hover">
+                <p style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Prod. Total (MMm³)</p>
+                <p style="font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0;" id="kpiProd">18,542</p>
+                <p style="font-size: 0.75rem; color: #10b981; font-weight: 600; margin-top: 0.25rem; margin-bottom: 0;" id="kpiGrowth">+4.2% YoY</p>
+              </div>
+              
+              <!-- KPI 2 -->
+              <div style="background: white; padding: 1.25rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" class="card-hover">
+                <p style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Participación PBI</p>
+                <p style="font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0;" id="kpiEconomy">1.2%</p>
+                <p style="font-size: 0.75rem; color: #0ea5e9; font-weight: 600; margin-top: 0.25rem; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Fortalecimiento matriz</p>
+              </div>
+
+              <!-- KPI 3 -->
+              <div style="background: white; padding: 1.25rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" class="card-hover">
+                <p style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Eficiencia (VBP/VAB)</p>
+                <p style="font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0;" id="kpiRatio">65.4%</p>
+                <p style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 0.25rem; margin-bottom: 0;">Valor retenido</p>
+              </div>
+
+              <!-- KPI 4 -->
+              <div style="background: white; padding: 1.25rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" class="card-hover">
+                <p style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem;">Costo de Operación</p>
+                <p style="font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0;">+4.2%</p>
+                <p style="font-size: 0.75rem; color: #f43f5e; font-weight: 600; margin-top: 0.25rem; margin-bottom: 0;">Riesgo Inflacionario</p>
+              </div>
+            </section>
+
+            <!-- Gráficos -->
+            <div class="grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" style="display: grid; gap: 1.25rem;">
+              
+              <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                  <!-- Gráfico Participación Economía -->
+                  <div style="background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex: 1; display: flex; flex-direction: column; min-height: 280px;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem; margin-top: 0;">Participación en el PBI (%) vs Crecimiento</h3>
+                    <p style="font-size: 0.75rem; color: #64748b; margin-top: 0; margin-bottom: 1.5rem;">Análisis de Desacople: Crecimientos de volumen vs share de PBI.</p>
+                    <div style="flex: 1; position: relative;">
+                      <canvas id="chartEconomia"></canvas>
+                    </div>
+                  </div>
+                  
+                  <!-- Gráfico Evolución + Tendencia -->
+                  <div style="background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex: 1; display: flex; flex-direction: column; min-height: 280px;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem; margin-top: 0;">Evolución de Producción (MMm³) y Línea de Tendencia</h3>
+                    <p style="font-size: 0.75rem; color: #64748b; margin-top: 0; margin-bottom: 1.5rem;">Análisis predictivo identificando picos y anomalías.</p>
+                    <div style="flex: 1; position: relative;">
+                      <canvas id="chartEvolucion"></canvas>
+                    </div>
+                  </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                  <!-- Gráfico Barras: Minerales -->
+                  <div style="background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); min-height: 250px; display: flex; flex-direction: column;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem; margin-top: 0;">Volumen por Recurso</h3>
+                    <div style="flex: 1; position: relative; margin-top: 1rem;">
+                      <canvas id="chartMinerales"></canvas>
+                    </div>
+                  </div>
+                  
+                  <!-- Gráfico Barras Horizontal: Región/Empresa -->
+                  <div style="background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex: 1; display: flex; flex-direction: column; min-height: 250px;">
+                    <h3 style="font-size: 0.875rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem; margin-top: 0;">Operadoras Top</h3>
+                    <div style="flex: 1; position: relative; margin-top: 1rem;">
+                      <canvas id="chartRegion"></canvas>
+                    </div>
+                  </div>
+
+                  <!-- Gráfico Pie: Composición -->
+                  <div style="background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: none;">
+                    <canvas id="chartComposicion"></canvas>
+                  </div>
+              </div>
+            </div>
+        </div>
+
+        <!-- Sidebar: Economic Insights -->
+        <aside class="relative lg:sticky top-0 h-auto lg:h-fit" style="background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+          <div>
+            <h2 style="font-size: 0.875rem; font-weight: 700; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1.25rem; margin-top: 0;">Análisis Estratégico</h2>
+            
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <div style="background-color: #f8fafc; border-left: 3px solid #0ea5e9; padding: 1rem; border-radius: 0 8px 8px 0;">
+                <p style="font-size: 0.85rem; line-height: 1.4; color: #334155; font-style: italic; margin: 0;">
+                  "El incremento de la participación del sector en el PBI (0.7% a 1.2%) indica un fortalecimiento relativo de la minería dentro de la economía nacional."
+                </p>
+              </div>
+              
+              <div style="background-color: #f8fafc; border-left: 3px solid #10b981; padding: 1rem; border-radius: 0 8px 8px 0;">
+                <p style="font-size: 0.85rem; line-height: 1.4; color: #334155; font-style: italic; margin: 0;">
+                  "El ratio VBP/VAB (~65%) sugiere una conversión eficiente de producción en valor agregado, aunque dependerá del contexto de precios."
+                </p>
+              </div>
+              
+              <div style="background-color: #fff1f2; border-left: 3px solid #f43f5e; padding: 1rem; border-radius: 0 8px 8px 0;">
+                <p style="font-size: 0.85rem; line-height: 1.4; color: #9f1239; font-style: italic; font-weight: 500; margin: 0;">
+                  "Riesgo: La evolución del sector podría estar condicionada por factores externos y concentración productiva, introduciendo vulnerabilidad estructural."
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
+            <h3 style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 0.75rem; margin-top: 0; text-transform: uppercase; letter-spacing: 0.05em;">Indicadores Derivados</h3>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+                <span style="color: #64748b;">Variación de Costos</span>
+                <span style="font-weight: 600;">+4.8% YoY</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+                <span style="color: #64748b;">Tendencia Proyectada</span>
+                <span style="font-weight: 600; color: #10b981;">Alza Sostenida</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+    </main>
+
+    <!-- Footer Status -->
+    <footer class="flex-col sm:flex-row gap-2 sm:gap-0 text-center sm:text-left" style="background-color: #0f172a; padding: 0.5rem 1.5rem; color: #94a3b8; font-size: 0.7rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; flex-shrink: 0; width: 100%; box-sizing: border-box;">
+      <span id="footerFreshnessIndicator">Dataset: SESCO - Secretaría de Energía • Última actualización: Hoy 09:42 AM</span>
+      <span>© 2024 Senior Economic Analytics Suite</span>
+    </footer>
+  </div>
+
+  <!-- Script Lógico -->
+  <script>
+    // Variables globales de Chart.js para destruirlas al recrear
+    let charts = {};
+
+    // Dataset simulado derivado de los CSV reales "Producción de Petróleo y Gas (SESCO)" e indicadores del INDEC.
+    const globalData = [
+      { year: 2020, empresa: "PAN AMERICAN ENERGY SL", recurso: "Petróleo", produccion: 3100, pbiShare: 0.70, vbpRatio: 61.2 },
+      { year: 2020, empresa: "OILSTONE ENERGIA S.A.", recurso: "Gas Natural", produccion: 2900, pbiShare: 0.72, vbpRatio: 60.1 },
+      { year: 2020, empresa: "CHAÑARES ENERGIA S.A.", recurso: "Petróleo", produccion: 1500, pbiShare: 0.65, vbpRatio: 58.5 },
+      
+      { year: 2021, empresa: "PAN AMERICAN ENERGY SL", recurso: "Petróleo", produccion: 3800, pbiShare: 0.75, vbpRatio: 62.1 },
+      { year: 2021, empresa: "COLHUE HUAPI S.A.", recurso: "Gas Natural", produccion: 3200, pbiShare: 0.80, vbpRatio: 63.4 },
+      { year: 2021, empresa: "OILSTONE ENERGIA S.A.", recurso: "Petróleo", produccion: 2100, pbiShare: 0.78, vbpRatio: 60.0 },
+
+      { year: 2022, empresa: "PAN AMERICAN ENERGY SL", recurso: "Gas Natural", produccion: 4200, pbiShare: 0.95, vbpRatio: 64.2 },
+      { year: 2022, empresa: "OILSTONE ENERGIA S.A.", recurso: "Petróleo", produccion: 3600, pbiShare: 1.05, vbpRatio: 64.9 },
+      { year: 2022, empresa: "CHAÑARES ENERGIA S.A.", recurso: "Petróleo", produccion: 1800, pbiShare: 1.00, vbpRatio: 62.5 },
+
+      { year: 2023, empresa: "PAN AMERICAN ENERGY SL", recurso: "Petróleo", produccion: 4500, pbiShare: 1.15, vbpRatio: 65.5 },
+      { year: 2023, empresa: "COLHUE HUAPI S.A.", recurso: "Gas Natural", produccion: 4300, pbiShare: 1.10, vbpRatio: 64.8 },
+      { year: 2023, empresa: "OILSTONE ENERGIA S.A.", recurso: "Petróleo", produccion: 3100, pbiShare: 1.12, vbpRatio: 63.1 },
+
+      { year: 2024, empresa: "PAN AMERICAN ENERGY SL", recurso: "Gas Natural", produccion: 5100, pbiShare: 1.20, vbpRatio: 66.8 },
+      { year: 2024, empresa: "CHAÑARES ENERGIA S.A.", recurso: "Petróleo", produccion: 2100, pbiShare: 1.22, vbpRatio: 64.1 },
+      { year: 2024, empresa: "OILSTONE ENERGIA S.A.", recurso: "Petróleo", produccion: 4100, pbiShare: 1.18, vbpRatio: 65.0 }
+    ];
+
+    // Simulación de Cierre del Loader
+    window.onload = () => {
+      setTimeout(() => {
+        document.getElementById('loaderOverlay').style.opacity = '0';
+        setTimeout(() => {
+          document.getElementById('loaderOverlay').style.display = 'none';
+          const dash = document.getElementById('dashboardContent');
+          dash.style.display = 'flex'; // Fix via inline style
+          updateDashboard(); // Inicia dibujo
+        }, 500);
+      }, 1500);
+    }
+
+    function destroyChartIfExists(chartId) {
+      if (charts[chartId]) {
+        charts[chartId].destroy();
+      }
+    }
+
+    function interpolateTrendLine(dataLabels, dataPoints) {
+      if(dataPoints.length === 0) return [];
+      const n = dataPoints.length;
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      for (let i = 0; i < n; i++) {
+        sumX += i;
+        sumY += dataPoints[i];
+        sumXY += i * dataPoints[i];
+        sumX2 += i * i;
+      }
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX) || 0;
+      const intercept = (sumY - slope * sumX) / n || 0;
+      
+      return dataPoints.map((_, i) => intercept + slope * i);
+    }
+
+    function updateDashboard() {
+      Chart.defaults.font.family = "'Helvetica Neue', Arial, sans-serif";
+      Chart.defaults.color = '#64748b'; // slate-500
+      Chart.defaults.scale.grid.color = '#f1f5f9'; // slate-100
+
+      // 1. Obtener Filtros
+      const yF = document.getElementById('yearFilter').value;
+      const cF = document.getElementById('companyFilter').value;
+      const rF = document.getElementById('resourceFilter').value;
+
+      // 2. Filtrar Data
+      let filteredData = globalData.filter(d => {
+        return (yF === "Todos" || d.year.toString() === yF) &&
+               (cF === "Todos" || d.empresa === cF) &&
+               (rF === "Todos" || d.recurso === rF);
+      });
+
+      if(filteredData.length === 0) {
+        alert("Sin datos para esta combinación de filtros.");
+        return;
+      }
+
+      // 3. Update KPIs (Agregados Base)
+      const totalProd = filteredData.reduce((a, b) => a + b.produccion, 0);
+      
+      // Encontrar año ant vs este para crecimiento
+      const years = [...new Set(filteredData.map(d=>d.year))].sort();
+      let growthMsg = "N/A";
+      let growthColor = "text-gray-500";
+      
+      if(years.length >= 2) {
+        const lastYr = years[years.length-1];
+        const prevYr = years[years.length-2];
+        const pLastYr = filteredData.filter(d=>d.year===lastYr).reduce((a, b) => a + b.produccion, 0);
+        const pPrevYr = filteredData.filter(d=>d.year===prevYr).reduce((a, b) => a + b.produccion, 0);
+        const g = ((pLastYr - pPrevYr) / pPrevYr) * 100;
+        growthMsg = `${g > 0 ? '+' : ''}${g.toFixed(1)}% YoY`;
+        growthColor = g > 0 ? "text-green-500" : "text-red-500";
+      }
+
+      const avgPbi = (filteredData.reduce((a,b)=>a+b.pbiShare,0) / filteredData.length).toFixed(2);
+      const avgVbp = (filteredData.reduce((a,b)=>a+b.vbpRatio,0) / filteredData.length).toFixed(1);
+
+      // Dominant Resource & Company
+      const countRes = {}; filteredData.forEach(d => { countRes[d.recurso] = (countRes[d.recurso]||0) + d.produccion });
+      const topRes = Object.keys(countRes).reduce((a, b) => countRes[a] > countRes[b] ? a : b);
+
+      const countComp = {}; filteredData.forEach(d => { countComp[d.empresa] = (countComp[d.empresa]||0) + d.produccion });
+      const topComp = Object.keys(countComp).reduce((a, b) => countComp[a] > countComp[b] ? a : b);
+
+      // Render Text
+      document.getElementById('kpiProd').innerText = new Intl.NumberFormat('es-AR').format(totalProd);
+      const elGrowth = document.getElementById('kpiGrowth');
+      elGrowth.innerText = growthMsg;
+      if (growthMsg.includes('-')) {
+        elGrowth.style.color = '#f43f5e';
+      } else {
+        elGrowth.style.color = '#10b981';
+      }
+      
+      document.getElementById('kpiEconomy').innerText = `${avgPbi}%`;
+      document.getElementById('kpiRatio').innerText = `~${avgVbp}%`;
+
+      // 4. PREP CHARTS DATA
+      const aggByYear = {}; 
+      const avgPbiByYear = {}; 
+      
+      years.forEach(y => {
+        let yrData = filteredData.filter(d=>d.year === y);
+        aggByYear[y] = yrData.reduce((a,b)=>a+b.produccion,0);
+        avgPbiByYear[y] = yrData.reduce((a,b)=>a+b.pbiShare,0) / yrData.length;
+      });
+
+      const evoLabels = Object.keys(aggByYear);
+      const evoData = Object.values(aggByYear);
+
+      // --- Chart: Evolución ---
+      destroyChartIfExists('chartEvolucion');
+      const trendData = interpolateTrendLine(evoLabels, evoData);
+
+      charts['chartEvolucion'] = new Chart(document.getElementById('chartEvolucion'), {
+        type: 'bar',
+        data: {
+          labels: evoLabels,
+          datasets: [
+            {
+              type: 'line',
+              label: 'Producción Real (Línea)',
+              data: evoData,
+              borderColor: '#0ea5e9',
+              backgroundColor: '#0ea5e9',
+              tension: 0.3,
+              fill: false,
+              borderWidth: 3,
+              yAxisID: 'y'
+            },
+            {
+              type: 'line',
+              label: 'Tendencia Proyectada',
+              data: trendData,
+              borderColor: '#94a3b8',
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: false,
+              borderWidth: 2
+            },
+            {
+              type: 'bar',
+              label: 'Volumen Acumulado',
+              data: evoData,
+              backgroundColor: 'rgba(14, 165, 233, 0.1)',
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: {size: 10} } } }
+        }
+      });
+
+      // --- Chart: Economía ---
+      destroyChartIfExists('chartEconomia');
+      charts['chartEconomia'] = new Chart(document.getElementById('chartEconomia'), {
+        type: 'line',
+        data: {
+          labels: evoLabels,
+          datasets: [{
+            label: '% Participación PBI',
+            data: Object.values(avgPbiByYear),
+            borderColor: '#334155',
+            backgroundColor: 'rgba(51, 65, 85, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: {size: 10} } } },
+          scales: { y: { min: 0 } }
+        }
+      });
+
+      // --- Chart: Minerales ---
+      destroyChartIfExists('chartMinerales');
+      const minLabels = Object.keys(countRes);
+      const minData = Object.values(countRes);
+      charts['chartMinerales'] = new Chart(document.getElementById('chartMinerales'), {
+        type: 'bar',
+        data: {
+          labels: minLabels,
+          datasets: [{
+            label: 'Volumen (MMm³)',
+            data: minData,
+            backgroundColor: ['#0f172a', '#334155', '#94a3b8'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // --- Chart: Composición (Pie) ---
+      destroyChartIfExists('chartComposicion');
+      charts['chartComposicion'] = new Chart(document.getElementById('chartComposicion'), {
+        type: 'doughnut',
+        data: {
+          labels: minLabels,
+          datasets: [{
+            data: minData,
+            backgroundColor: ['#0f172a', '#334155', '#94a3b8', '#e2e8f0'],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: {size: 10} } } },
+          cutout: '65%'
+        }
+      });
+
+      // --- Chart: Regiones/Empresas ---
+      destroyChartIfExists('chartRegion');
+      // Sort companies by volume
+      const sortedComp = Object.entries(countComp).sort((a,b)=>b[1]-a[1]);
+      charts['chartRegion'] = new Chart(document.getElementById('chartRegion'), {
+        type: 'bar',
+        data: {
+          labels: sortedComp.map(c=>c[0].replace(' S.A.','').replace(' SL','')),
+          datasets: [{
+            label: 'Producción',
+            data: sortedComp.map(c=>c[1]),
+            backgroundColor: '#0ea5e9',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
+      });
+
+    }
+
+    // --- LOGICA DE SIMULACIÓN REAL-TIME ---
+    function simulateRealTimeData() {
+      // Modify recent data (e.g. 2024) with slight fluctuations
+      const currentData = globalData.filter(d => d.year === 2024);
+      
+      currentData.forEach(row => {
+        // Random fluctuation between -2% and +2% for production
+        let factor = 1 + (Math.random() * 0.04 - 0.02);
+        row.produccion = Math.round(row.produccion * factor);
+        
+        // Slight fluctuation for ratios
+        let ratioFactor = 1 + (Math.random() * 0.02 - 0.01);
+        row.pbiShare = +(row.pbiShare * ratioFactor).toFixed(2);
+        row.vbpRatio = +(row.vbpRatio * ratioFactor).toFixed(1);
+      });
+
+      // Update the UI
+      updateDashboard();
+
+      // Highlight updated widgets visually to simulate "ticks"
+      ["kpiProd", "kpiEconomy", "kpiRatio"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.transition = 'color 0.3s ease';
+          el.style.color = '#10b981'; // Green flash
+          setTimeout(() => el.style.color = '#0f172a', 800);
+        }
+      });
+
+      // Update the freshness indicator text
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('footerFreshnessIndicator').innerHTML = `Dataset: SESCO - Secretaría de Energía • Última actualización en vivo: <strong>${timeString}</strong>`;
+    }
+
+    // Initialize initial time format correctly
+    const initialTime = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('footerFreshnessIndicator').innerHTML = `Dataset: SESCO - Secretaría de Energía • Última actualización: Hoy ${initialTime}`;
+
+    // Execute exactly every 60 seconds (1 minute interval)
+    setInterval(simulateRealTimeData, 60000);
+
+  </script>
+</body>
+</html>
+
